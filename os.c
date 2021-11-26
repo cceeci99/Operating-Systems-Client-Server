@@ -97,7 +97,7 @@ int main(int argc, char* argv[]){
         if ( pids[i] == 0 ){  // CHILD PROCESS aka CLIENT
             srand(time(NULL) + getpid()); // because children are created at the same time the seed will be same for all of them
 
-             usleep(1);
+             usleep(1); // sleep for milisecond so that the next client is random
 
             double run_time[number_of_requests];
             double total = 0;
@@ -127,13 +127,15 @@ int main(int argc, char* argv[]){
                 printf("Client %d with ID %d Printing line: %s \n\n", i+1, getpid(), segment->requested_line);
 
                 sem_post(&segment->client_to_other_clients);    // unblock
-                usleep(1);
+                usleep(1);  // sleep for miliseconds so that the next transaction is from random client
                 j++;
             }
             sleep(1);   // sleep so the children's average times are printed in once
             average_time[i] = total/(double) number_of_requests;
             printf("Client %d with ID %d has total Request-Respond Time %.10f\n",i+1, getpid(),average_time[i]);
-            return 0;       // child must return and not continue the loop, in that case 2^K children will be created
+
+            // child must return and not continue the loop, in that case 2^K children will be created
+            return 0;
         }
     }
 
@@ -174,10 +176,6 @@ int main(int argc, char* argv[]){
     for (int i=0; i<number_of_childs; i++){
         wait(NULL);
     }
-
-//    for (int i=0; i<number_of_childs; i++) {
-//        printf("Client with ID %d has average time of Request-Respond: %.5f\n", pids[i], average_time[i]);
-//    }
 
      // delete semaphores and shared memory
     if ( sem_destroy(&segment->client_to_other_clients) == -1 ){
