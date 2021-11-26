@@ -11,7 +11,7 @@
 
 #include <time.h>
 
-#define LINE_SIZE 1000
+#define LINE_SIZE 200
 #define PERMS 0666
 
 
@@ -83,9 +83,8 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     }
 
-    // create how many childs you want (number_of_childs = K)
     int pids[number_of_childs];
-//    float average_time[number_of_childs];
+    double average_time[number_of_childs];
 
     for ( int i=0; i < number_of_childs; i++ ){
         pids[i] = fork();
@@ -96,12 +95,12 @@ int main(int argc, char* argv[]){
         }
 
         if ( pids[i] == 0 ){  // CHILD PROCESS aka CLIENT
-            srand(time(NULL) + getpid()); // because childs are created at the same time the seed will be same for all of them
+            srand(time(NULL) + getpid()); // because children are created at the same time the seed will be same for all of them
 
-            usleep(2);
+             usleep(1);
 
-//            float run_time[number_of_requests];
-
+            double run_time[number_of_requests];
+            double total = 0;
             int j=0;
 
             while ( j < number_of_requests ){
@@ -114,24 +113,26 @@ int main(int argc, char* argv[]){
                 start = clock();
 
                 segment->random_line_number = rand() % number_of_lines + 1;
-                printf("Client %d  with ID %d requesting: Deliver line %d\n", i+1, getpid(), segment->random_line_number);
+                printf("Client %d  with ID %d Requesting: Deliver line %d ... \n", i+1, getpid(), segment->random_line_number);
 
                 sem_post(&segment->server_to_client);           // unblock server to take the request
 
                 sem_wait(&segment->client_to_server);           // block current client
                 sem_wait(&segment->client_to_server);
 
-//                end = clock();
-//                run_time[j] = ((double)(end-start))/CLOCKS_PER_SEC;
+                end = clock();
+                run_time[j] = ((double)(end-start))/CLOCKS_PER_SEC;
+                total += run_time[j];
 
-
-                printf("Child %d with ID %d Printing line: %s \n\n", i+1, getpid(), segment->requested_line);
+                printf("Client %d with ID %d Printing line: %s \n\n", i+1, getpid(), segment->requested_line);
 
                 sem_post(&segment->client_to_other_clients);    // unblock
                 usleep(1);
                 j++;
             }
-
+            sleep(1);   // sleep so the children's average times are printed in once
+            average_time[i] = total/(double) number_of_requests;
+            printf("Client %d with ID %d has total Request-Respond Time %.10f\n",i+1, getpid(),average_time[i]);
             return 0;       // child must return and not continue the loop, in that case 2^K children will be created
         }
     }
@@ -155,14 +156,13 @@ int main(int argc, char* argv[]){
 
         while ( fgets(line, LINE_SIZE, file) != NULL ){
             if ( count == segment->random_line_number ){
-                printf("SERVER DELIVERING LINE ->\n");
+                printf("Server Delivering Line... \n");
 
                 strcpy(segment->requested_line, line);
                 break;
             }
-            else{
+            else
                 count++;
-            }
         }
         fclose(file);
 
@@ -170,14 +170,17 @@ int main(int argc, char* argv[]){
         transactions++;
     }
 
-
     // parent waits till all child terminate then detach and deallocate the memory and semaphores.
-     for ( int i=0; i<number_of_childs; i++ ){
+    for (int i=0; i<number_of_childs; i++){
         wait(NULL);
     }
 
+//    for (int i=0; i<number_of_childs; i++) {
+//        printf("Client with ID %d has average time of Request-Respond: %.5f\n", pids[i], average_time[i]);
+//    }
+
      // delete semaphores and shared memory
-     if ( sem_destroy(&segment->client_to_other_clients) == -1 ){
+    if ( sem_destroy(&segment->client_to_other_clients) == -1 ){
         perror("Semaphore destroy");
         exit(EXIT_FAILURE);
     }
