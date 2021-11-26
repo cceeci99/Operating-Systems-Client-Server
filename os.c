@@ -11,7 +11,7 @@
 
 #include <time.h>
 
-#define LINE_SIZE 100
+#define LINE_SIZE 1000
 #define PERMS 0666
 
 
@@ -47,6 +47,7 @@ int main(int argc, char* argv[]){
     while ( fgets(line, LINE_SIZE, file) != NULL ){
         number_of_lines++;
     }
+
     fclose(file);
 
 
@@ -84,6 +85,7 @@ int main(int argc, char* argv[]){
 
     // create how many childs you want (number_of_childs = K)
     int pids[number_of_childs];
+//    float average_time[number_of_childs];
 
     for ( int i=0; i < number_of_childs; i++ ){
         pids[i] = fork();
@@ -94,9 +96,11 @@ int main(int argc, char* argv[]){
         }
 
         if ( pids[i] == 0 ){  // CHILD PROCESS aka CLIENT
-            srand(time(NULL)+getpid()); // because childs are created at the same time the seed will be same for all of them
+            srand(time(NULL) + getpid()); // because childs are created at the same time the seed will be same for all of them
 
-            usleep(2);  // sleep for 2miliseconds so that we can randomize which child will take over
+            usleep(2);
+
+//            float run_time[number_of_requests];
 
             int j=0;
 
@@ -106,38 +110,39 @@ int main(int argc, char* argv[]){
 
                 sem_post(&segment->client_to_server);
 
-                fprintf(stdout,"Child %d  with ID %d requesting: \n", i+1, getpid());
-                fflush(stdout);
+                clock_t start, end;
+                start = clock();
 
-                // client asks from server to give him a random line from the file
                 segment->random_line_number = rand() % number_of_lines + 1;
-                fprintf(stdout,"Deliver me line %d\n", segment->random_line_number);
-                fflush(stdout);
+                printf("Client %d  with ID %d requesting: Deliver line %d\n", i+1, getpid(), segment->random_line_number);
 
                 sem_post(&segment->server_to_client);           // unblock server to take the request
 
                 sem_wait(&segment->client_to_server);           // block current client
                 sem_wait(&segment->client_to_server);
 
-                fprintf(stdout,"Child %d with ID %d Printing line: %s \n", i+1, getpid(), segment->requested_line);
-                fflush(stdout);
+//                end = clock();
+//                run_time[j] = ((double)(end-start))/CLOCKS_PER_SEC;
 
+
+                printf("Child %d with ID %d Printing line: %s \n\n", i+1, getpid(), segment->requested_line);
 
                 sem_post(&segment->client_to_other_clients);    // unblock
-                
+                usleep(1);
                 j++;
-
-                usleep(2);
             }
-            return 0;       // child must return and not continue the loop, in that case 2^K childs will be created
+
+            return 0;       // child must return and not continue the loop, in that case 2^K children will be created
         }
     }
 
+    // from here and on , onl parent executes the code //
 
-     // here executes only the parent process
     int transactions = 0;
+
     while ( transactions < number_of_childs*number_of_requests ){
-        sem_wait(&segment->server_to_client);   // block server till it get's request
+
+        sem_wait(&segment->server_to_client);   // block server till it gets request
 
         file = fopen(file_name, "r");
         if ( file == NULL ){
@@ -150,8 +155,8 @@ int main(int argc, char* argv[]){
 
         while ( fgets(line, LINE_SIZE, file) != NULL ){
             if ( count == segment->random_line_number ){
-                fprintf(stdout,"DELIVERING LINE ->\n");
-                fflush(stdout);
+                printf("SERVER DELIVERING LINE ->\n");
+
                 strcpy(segment->requested_line, line);
                 break;
             }
@@ -161,18 +166,18 @@ int main(int argc, char* argv[]){
         }
         fclose(file);
 
-        transactions++;
         sem_post(&segment->client_to_server);   // unblock client to get the response
+        transactions++;
     }
 
-     // parent waits till all child terminate then detach and deallocate the memory and semaphores.
-    for ( int i=0; i<number_of_childs; i++ ){
+
+    // parent waits till all child terminate then detach and deallocate the memory and semaphores.
+     for ( int i=0; i<number_of_childs; i++ ){
         wait(NULL);
     }
 
      // delete semaphores and shared memory
-
-    if ( sem_destroy(&segment->client_to_other_clients) == -1 ){
+     if ( sem_destroy(&segment->client_to_other_clients) == -1 ){
         perror("Semaphore destroy");
         exit(EXIT_FAILURE);
     }
