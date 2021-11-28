@@ -11,14 +11,16 @@
 
 #include <time.h>
 
-#define LINE_SIZE 200
+#define BUFFER_SIZE 1000    // buffer size is for reading lines from file
+                            // ( because the file can contain lines with > 100 characters
+                            // but the line is requested will have at most 100 characters
+#define LINE_SIZE 100
 #define PERMS 0666
 
 
 typedef struct shared_memory{
     int random_line_number;             // the number of the line which will be requested
     char requested_line[LINE_SIZE];     // the line itself which will be returnet
-
 
     // 3 unnamed semaphores as part of the shared memory
     sem_t client_to_other_clients;
@@ -45,10 +47,9 @@ int main(int argc, char* argv[]){
 
     int number_of_lines = 0;
     char line[LINE_SIZE];
-    while ( fgets(line, LINE_SIZE, file) != NULL ){
+    while ( fgets(line, BUFFER_SIZE, file) != NULL ){
         number_of_lines++;
     }
-
     fclose(file);
 
      // create the shared memory. Since it's done before fork() both parent and child will have access
@@ -85,7 +86,6 @@ int main(int argc, char* argv[]){
 
     pid_t pids[number_of_childs];
 
-
     for ( int i=0; i < number_of_childs; i++ ){
         pids[i] = fork();
 
@@ -106,7 +106,7 @@ int main(int argc, char* argv[]){
     }
 
     if (is_child){
-        // executing child process ...
+        // executing child process aka CLIENT...
         srand(time(NULL) + getpid()); // because children are created at the same time the seed will be same for all of them
 
         float run_time[number_of_requests];
@@ -116,6 +116,8 @@ int main(int argc, char* argv[]){
         for (int i=0; i<number_of_requests; i++){
 
             sem_wait(&segment->client_to_other_clients);    // block all other clients
+
+            //  -------- CRITICAL SECTION --------- //
 
             clock_t start, end;
             start = clock();
@@ -129,11 +131,11 @@ int main(int argc, char* argv[]){
             sem_wait(&segment->client_to_server);           // wait till server responds
 
             end = clock();
+
             run_time[i] = ((float)(end-start))/CLOCKS_PER_SEC;
             total += run_time[i];
 
-            printf("Client with ID %d Printing line: %s \n", getpid(), segment->requested_line);
-
+            printf("Client with ID %d Printing line: %s \n\n", getpid(), segment->requested_line);
 
             sem_post(&segment->client_to_other_clients);    // other clients now can make a reqest
 
@@ -141,14 +143,15 @@ int main(int argc, char* argv[]){
         }
         sleep(1);
         printf("Average waiting time of child with ID %d is: %.10f\n\n", getpid(), total/number_of_requests);
-        exit(0);
     }
     else{
-        // executing parent process ...
+        // executing parent process aka SERVER...
 
         for( int i=0; i < number_of_childs*number_of_requests; i++ ){
+
             sem_wait(&segment->server_to_client);       // block server till he gets a request
 
+            // open and read file, find the requested line and write it to the shared memory.
             file = fopen(file_name, "r");
             if ( file == NULL ){
                 printf("Could not open file %s", file_name);
@@ -156,12 +159,12 @@ int main(int argc, char* argv[]){
             }
 
             int count = 1;
-            char line[100];
+            char line[BUFFER_SIZE];
 
-            while ( fgets(line, LINE_SIZE, file) != NULL ){
+            while ( fgets(line, BUFFER_SIZE, file) != NULL ){
                 if ( count == segment->random_line_number ){
                     printf("Server Delivering Line... \n");
-                    strcpy(segment->requested_line, line);
+                    memcpy(segment->requested_line, line, LINE_SIZE);
                     break;
                 }
                 else
