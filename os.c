@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <time.h>
+
 #include <unistd.h>
 
 #include <sys/ipc.h>
@@ -9,18 +12,16 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 
-#include <time.h>
-
 #define BUFFER_SIZE 1000    // buffer size is for reading lines from file
                             // ( because the file can contain lines with > 100 characters
                             // but the line is requested will have at most 100 characters
 #define LINE_SIZE 100
 #define PERMS 0666
 
-
 typedef struct shared_memory{
     int random_line_number;             // the number of the line which will be requested
     char requested_line[LINE_SIZE];     // the line itself which will be returnet
+    int child_counter;
 
     // 3 unnamed semaphores as part of the shared memory
     sem_t client_to_other_clients;
@@ -57,7 +58,14 @@ int main(int argc, char* argv[]){
     int segment_id;
     shared_memory* segment;
 
-    segment_id = shmget(IPC_PRIVATE, sizeof(shared_memory), IPC_CREAT | PERMS);
+    // For the shared memory segment we allocate sizeof(shared memory) + size for an array of integers for the child IDs   //
+    // + an array of floats for the average times of each child  //
+    // That is done because we cannot place pointers in the shared memory as they show on virtual memory address that is specified for each child //
+    // and since we don't have as static the number of children we must use array in the shared memory which is not visible in the struct itself
+    // as some pointer or some static array //
+
+
+    segment_id = shmget(IPC_PRIVATE, sizeof(shared_memory) + number_of_childs*sizeof(int) + number_of_childs*sizeof(float), IPC_CREAT | PERMS);
     if ( segment_id == -1 ){
         perror("Shared Memory Create");
         exit(EXIT_FAILURE);
@@ -84,6 +92,8 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     }
 
+    segment->child_counter = 0;
+
     pid_t pids[number_of_childs];
 
     for ( int i=0; i < number_of_childs; i++ ){
@@ -107,13 +117,25 @@ int main(int argc, char* argv[]){
 
     if (is_child){
         // executing child process aka CLIENT...
+
         srand(time(NULL) + getpid()); // because children are created at the same time the seed will be same for all of them
+
+        // since there are arrays in the shared memory segment (but not visible as pointers or static arrays variables)
+        // and they are at specified offset  in the shared memory
+        // we must get a pointer pointing to memory address where those arrays begin
+        // find the offset by using pointer arithmetic for the data we already have in the shared memory
+
+        // first we have an array of int after all the memory segment
+        int* childIDs = (int *) (segment + sizeof(segment));
+
+        // second array of float after the array of int
+        float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
 
         float run_time[number_of_requests];
         float total = 0;
 
         usleep(1);
-        for (int i=0; i<number_of_requests; i++){
+        for (int i=0; i<number_of_requests; i++) {
 
             sem_wait(&segment->client_to_other_clients);    // block all other clients
 
@@ -132,17 +154,21 @@ int main(int argc, char* argv[]){
 
             end = clock();
 
-            run_time[i] = ((float)(end-start))/CLOCKS_PER_SEC;
+            run_time[i] = ((float) (end - start)) / CLOCKS_PER_SEC;
             total += run_time[i];
 
+            if (i == number_of_requests - 1){
+                childIDs[segment->child_counter] = getpid();
+                average_time[segment->child_counter] = total / number_of_requests;
+
+                segment->child_counter++;   // go to next child
+            }
             printf("Client with ID %d Printing line: %s \n\n", getpid(), segment->requested_line);
 
             sem_post(&segment->client_to_other_clients);    // other clients now can make a reqest
 
             usleep(1);  // sleep for milliseconds to randomize the next transaction
         }
-        sleep(1);
-        printf("Average waiting time of child with ID %d is: %.10f\n\n", getpid(), total/number_of_requests);
     }
     else{
         // executing parent process aka SERVER...
@@ -164,6 +190,7 @@ int main(int argc, char* argv[]){
             while ( fgets(line, BUFFER_SIZE, file) != NULL ){
                 if ( count == segment->random_line_number ){
                     printf("Server Delivering Line... \n");
+
                     memcpy(segment->requested_line, line, LINE_SIZE);
                     break;
                 }
@@ -177,6 +204,14 @@ int main(int argc, char* argv[]){
 
         for (int i=0; i<number_of_childs; i++){
             wait(NULL);
+        }
+
+        // find again the pointers pointing to the two arrays in shared memory for the childIDs and average time
+        int* childIDs = (int *) (segment + sizeof(segment));
+        float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
+
+        for (int i=0; i<number_of_childs; i++){
+            printf("Client with ID %d has average time of request-respond=%.10f \n",childIDs[i], average_time[i]);
         }
 
         // delete semaphores and shared memory
