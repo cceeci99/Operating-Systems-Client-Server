@@ -1,2 +1,2 @@
-# OperSys_proj1
-Operating_Systems project1
+# Project 1 of OPERATING SYSTEMS
+
