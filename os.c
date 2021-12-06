@@ -1,19 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <time.h>
-
 #include <unistd.h>
-
+#include <semaphore.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <semaphore.h>
+
 
 #define LINE_SIZE 100       // the line that will be requested can have at most 100 chars
 #define BUFFER_SIZE 1000    // buffer size is for reading lines from file as it can contain lines with more than 100 chars
+
 
 typedef struct shared_memory{
     // unnamed posix semaphores
