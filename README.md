@@ -1,2 +1,5 @@
-# Project 1 of OPERATING SYSTEMS
+# Project 1  OPERATING SYSTEMS
 
+1. Author : TSVETOMIR IVANOV/ sdi1115201900066
+
+2. Documentation:
