@@ -108,6 +108,8 @@ int main(int argc, char* argv[]){
             break;            // child must break loop, or there will be produced 2^K children
     }
 
+
+    // this code is executed by both child and parent...
     int is_child = 0;
     for (int i=0; i<number_of_childs; i++){
         if ( pids[i]==0 ){
@@ -115,6 +117,7 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // check if the executing process is a child process or parent process
     if (is_child){
         // executing child process aka CLIENT...
 
@@ -131,20 +134,17 @@ int main(int argc, char* argv[]){
         // second array of float after the array of int
         float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
 
-        float run_time[number_of_requests];
-        float total = 0;
+        float run_time = 0;
 
-        usleep(1);
         for (int i=0; i<number_of_requests; i++) {
 
             sem_wait(&segment->client_to_other_clients);    // block all other clients
-
             //  -------- CRITICAL SECTION --------- //
 
             clock_t start, end;
-            start = clock();
+            start = clock();    // start timer... from the moment requesting the line 
 
-            // send request
+            // send request...
             segment->random_line_number = rand() % number_of_lines + 1;
             printf("Client with ID %d Requesting: Deliver line %d ... \n", getpid(), segment->random_line_number);
 
@@ -152,23 +152,23 @@ int main(int argc, char* argv[]){
 
             sem_wait(&segment->client_to_server);           // wait till server responds
 
-            end = clock();
-
-            run_time[i] = ((float) (end - start)) / CLOCKS_PER_SEC;
-            total += run_time[i];
-
-            if (i == number_of_requests - 1){
-                childIDs[segment->child_counter] = getpid();
-                average_time[segment->child_counter] = total / number_of_requests;
-
-                segment->child_counter++;   // go to next child
-            }
+            // receive respond...
             printf("Client with ID %d Printing line: %s \n\n", getpid(), segment->requested_line);
+
+            end = clock();    // end timer... when parent responds
+
+            run_time += ((float) (end - start)) / CLOCKS_PER_SEC;
 
             sem_post(&segment->client_to_other_clients);    // other clients now can make a reqest
 
-            usleep(1);  // sleep for milliseconds to randomize the next transaction
+            // usleep(1);  // sleep for milliseconds to randomize the next transaction
         }
+     
+        // when client has received all of the N requests compute it's average time of waiting
+        childIDs[segment->child_counter] = getpid();
+        average_time[segment->child_counter] = run_time / number_of_requests;
+
+        segment->child_counter++;   // go to next child
     }
     else{
         // executing parent process aka SERVER...
@@ -206,7 +206,7 @@ int main(int argc, char* argv[]){
             wait(NULL);
         }
 
-        // find again the pointers pointing to the two arrays in shared memory for the childIDs and average time
+        // parent must access the two arrays for the average_time of each child and print them all in once at the end of the program
         int* childIDs = (int *) (segment + sizeof(segment));
         float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
 
