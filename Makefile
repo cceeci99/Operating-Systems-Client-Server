@@ -18,13 +18,13 @@ $(EXEC):
 	$(CC) $(CFLAGS) -o $(EXEC) $(SRC) $(LDFLAGS)
 
 run:
-	./$(EXEC) $(file) $(K) $(N)
+	./$(EXEC) $(file) $(k) $(n)
 
-valgrind:
-	valgrind --leak-check=full ./$(EXEC) $(file) $(K) $(N)
+val:
+	valgrind --leak-check=full ./$(EXEC) $(file) $(k) $(n)
 
 time:
-	time ./$(EXEC) $(file) $(K) $(N)
+	time ./$(EXEC) $(file) $(k) $(n)
 
 clean:
 	rm -f  $(OBJ) $(EXEC)
