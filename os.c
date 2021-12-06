@@ -108,7 +108,6 @@ int main(int argc, char* argv[]){
             break;            // child must break loop, or there will be produced 2^K children
     }
 
-
     // this code is executed by both child and parent...
     int is_child = 0;
     for (int i=0; i<number_of_childs; i++){
@@ -117,10 +116,8 @@ int main(int argc, char* argv[]){
         }
     }
 
-    // check if the executing process is a child process or parent process
-    if (is_child){
-        // executing child process aka CLIENT...
-
+    if (is_child){      // executing child process aka CLIENT...
+        
         srand(time(NULL) + getpid()); // because children are created at the same time the seed will be same for all of them
 
         // since there are arrays in the shared memory segment (but not visible as pointers or static arrays variables)
@@ -152,7 +149,7 @@ int main(int argc, char* argv[]){
 
             sem_wait(&segment->client_to_server);           // wait till server responds
 
-            // receive respond...
+            // receive response...
             printf("Client with ID %d Printing line: %s \n\n", getpid(), segment->requested_line);
 
             end = clock();    // end timer... when parent responds
@@ -161,7 +158,7 @@ int main(int argc, char* argv[]){
 
             sem_post(&segment->client_to_other_clients);    // other clients now can make a reqest
 
-            // usleep(1);  // sleep for milliseconds to randomize the next transaction
+            usleep(1);  // sleep for milliseconds to randomize the next transaction
         }
      
         // when client has received all of the N requests compute it's average time of waiting
@@ -170,14 +167,14 @@ int main(int argc, char* argv[]){
 
         segment->child_counter++;   // go to next child
     }
-    else{
-        // executing parent process aka SERVER...
-
+    else{       // executing parent process aka SERVER...
+        
         for( int i=0; i < number_of_childs*number_of_requests; i++ ){
 
             sem_wait(&segment->server_to_client);       // block server till he gets a request
+            
+            //  -------- CRITICAL SECTION --------- //
 
-            // open and read file, find the requested line and write it to the shared memory.
             file = fopen(file_name, "r");
             if ( file == NULL ){
                 printf("Could not open file %s", file_name);
@@ -239,7 +236,6 @@ int main(int argc, char* argv[]){
             perror("Shared Memory Remove");
             exit(EXIT_FAILURE);
         }
-
-        return 0;
     }
+    return 0;
 }
