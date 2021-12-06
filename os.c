@@ -23,8 +23,9 @@ typedef struct shared_memory{
     sem_t client_to_server;
     sem_t server_to_client;
 
+    pid_t id;                               // stores the id of current client's request
     unsigned int line_number;              // the number of the line which will be requested
-    char requested_line[LINE_SIZE];     // the line itself which will be returnet
+    char requested_line[LINE_SIZE];     // the line itself which will be returned
     unsigned int child_counter;
 
     
@@ -64,7 +65,6 @@ int main(int argc, char* argv[]){
     // That is done because we cannot place pointers in the shared memory as they show on virtual memory address that is specified for each child
     // and since we don't have as static the number of children we must use array in the shared memory which is not visible in the struct itself
     // as some pointer or some static array variable
-
 
     segment_id = shmget(IPC_PRIVATE, 
     sizeof(shared_memory) + number_of_childs*sizeof(unsigned int) + number_of_childs*sizeof(float), IPC_CREAT | 0666);
@@ -137,23 +137,23 @@ int main(int argc, char* argv[]){
         float run_time = 0;
 
         for (int i=0; i<number_of_requests; i++) {
-
+            
             sem_wait(&segment->client_to_other_clients);    // block all other clients
-            //  -------- CRITICAL SECTION --------- //
 
             clock_t start, end;
             start = clock();    // start timer... from the moment requesting the line 
 
             // send request...
+            segment->id = getpid();
             segment->line_number = rand() % number_of_lines + 1;
-            printf("Client with ID %d Requesting: Deliver line %d ... \n", getpid(), segment->line_number);
+            printf("Client with ID %d requesting line %d ... \n", getpid(), segment->line_number);
 
             sem_post(&segment->server_to_client);           // unblock server to take the request
 
             sem_wait(&segment->client_to_server);           // wait till server responds
 
             // receive response...
-            printf("Client with ID %d Printing line: %s \n\n", getpid(), segment->requested_line);
+            printf("Client with ID %d printing line: %s \n\n", getpid(), segment->requested_line);
 
             end = clock();    // end timer... when parent responds
 
@@ -168,7 +168,7 @@ int main(int argc, char* argv[]){
         childIDs[segment->child_counter] = getpid();
         average_time[segment->child_counter] = run_time / number_of_requests;
 
-        segment->child_counter++;   // go to next child
+        segment->child_counter++;
     }
     else{       // executing parent process aka SERVER...
         
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]){
 
             while ( fgets(line, BUFFER_SIZE, file) != NULL ){
                 if ( count == segment->line_number ){
-                    printf("Server Delivering Line... \n");
+                    printf("Server delivering line to child %d ...\n", segment->id);
 
                     memcpy(segment->requested_line, line, LINE_SIZE);
                     break;
