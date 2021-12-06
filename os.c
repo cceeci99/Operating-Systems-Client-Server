@@ -18,14 +18,16 @@
                             // but the line can have at most 100 characters
 
 typedef struct shared_memory{
-    int random_line_number;             // the number of the line which will be requested
-    char requested_line[LINE_SIZE];     // the line itself which will be returnet
-    int child_counter;
-
     // 3 unnamed semaphores as part of the shared memory
     sem_t client_to_other_clients;
     sem_t client_to_server;
     sem_t server_to_client;
+
+    unsigned int line_number;              // the number of the line which will be requested
+    char requested_line[LINE_SIZE];     // the line itself which will be returnet
+    unsigned int child_counter;
+
+    
 
 } shared_memory;
 
@@ -65,14 +67,14 @@ int main(int argc, char* argv[]){
 
 
     segment_id = shmget(IPC_PRIVATE, 
-    sizeof(shared_memory) + number_of_childs*sizeof(int) + number_of_childs*sizeof(float), IPC_CREAT | 0666);
+    sizeof(shared_memory) + number_of_childs*sizeof(unsigned int) + number_of_childs*sizeof(float), IPC_CREAT | 0666);
 
     if ( segment_id == -1 ){
         perror("Shared Memory Create");
         exit(EXIT_FAILURE);
     }
 
-    segment = shmat(segment_id, NULL, 0);   // attach to shared memory
+    segment = shmat(segment_id, NULL, 0);   // attach segment(pointer) to shared memory
     if ( segment == (void *) -1 ){
         perror("Shared Memory Attach");
         exit(EXIT_FAILURE);
@@ -127,7 +129,7 @@ int main(int argc, char* argv[]){
         // find the offset by using pointer arithmetic for the data we already have in the shared memory
 
         // first we have an array of int after all the memory segment
-        int* childIDs = (int *) (segment + sizeof(segment));
+        unsigned int* childIDs = (unsigned int *) (segment + sizeof(segment));
 
         // second array of float after the array of int
         float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
@@ -143,8 +145,8 @@ int main(int argc, char* argv[]){
             start = clock();    // start timer... from the moment requesting the line 
 
             // send request...
-            segment->random_line_number = rand() % number_of_lines + 1;
-            printf("Client with ID %d Requesting: Deliver line %d ... \n", getpid(), segment->random_line_number);
+            segment->line_number = rand() % number_of_lines + 1;
+            printf("Client with ID %d Requesting: Deliver line %d ... \n", getpid(), segment->line_number);
 
             sem_post(&segment->server_to_client);           // unblock server to take the request
 
@@ -186,7 +188,7 @@ int main(int argc, char* argv[]){
             char line[BUFFER_SIZE];
 
             while ( fgets(line, BUFFER_SIZE, file) != NULL ){
-                if ( count == segment->random_line_number ){
+                if ( count == segment->line_number ){
                     printf("Server Delivering Line... \n");
 
                     memcpy(segment->requested_line, line, LINE_SIZE);
@@ -205,7 +207,7 @@ int main(int argc, char* argv[]){
         }
 
         // parent must access the two arrays for the average_time of each child and print them all in once at the end of the program
-        int* childIDs = (int *) (segment + sizeof(segment));
+        unsigned int* childIDs = (unsigned int *) (segment + sizeof(segment));
         float* average_time = (float *) (segment + sizeof(segment) + sizeof(childIDs));
 
         for (int i=0; i<number_of_childs; i++){
