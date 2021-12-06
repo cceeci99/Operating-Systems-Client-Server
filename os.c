@@ -28,17 +28,16 @@ typedef struct shared_memory{
     char requested_line[LINE_SIZE];     // the line itself which will be returned
     unsigned int child_counter;
 
-    
-
 } shared_memory;
 
 
 int main(int argc, char* argv[]){
 
+    
     // get line arguments
     char* file_name = argv[1];
-    int number_of_childs = atoi(argv[2]);   // K
-    int number_of_requests = atoi(argv[3]); // N
+    int number_of_childs = atoi(argv[2]);
+    int number_of_requests = atoi(argv[3]);
 
     // A File with name file_name is given by the command line arguments, open it and count it's lines //
     FILE *file = fopen(file_name, "r");
