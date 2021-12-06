@@ -12,11 +12,10 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 
+#define LINE_SIZE 100
 #define BUFFER_SIZE 1000    // buffer size is for reading lines from file
                             // ( because the file can contain lines with > 100 characters
-                            // but the line is requested will have at most 100 characters
-#define LINE_SIZE 100
-#define PERMS 0666
+                            // but the line can have at most 100 characters
 
 typedef struct shared_memory{
     int random_line_number;             // the number of the line which will be requested
@@ -58,14 +57,16 @@ int main(int argc, char* argv[]){
     int segment_id;
     shared_memory* segment;
 
-    // For the shared memory segment we allocate sizeof(shared memory) + size for an array of integers for the child IDs   //
-    // + an array of floats for the average times of each child  //
-    // That is done because we cannot place pointers in the shared memory as they show on virtual memory address that is specified for each child //
+    // For the shared memory segment we allocate sizeof(shared memory) + size for an array of integers for the child IDs
+    // + an array of floats for the average times of each child
+    // That is done because we cannot place pointers in the shared memory as they show on virtual memory address that is specified for each child
     // and since we don't have as static the number of children we must use array in the shared memory which is not visible in the struct itself
-    // as some pointer or some static array //
+    // as some pointer or some static array variable
 
 
-    segment_id = shmget(IPC_PRIVATE, sizeof(shared_memory) + number_of_childs*sizeof(int) + number_of_childs*sizeof(float), IPC_CREAT | PERMS);
+    segment_id = shmget(IPC_PRIVATE, 
+    sizeof(shared_memory) + number_of_childs*sizeof(int) + number_of_childs*sizeof(float), IPC_CREAT | 0666);
+
     if ( segment_id == -1 ){
         perror("Shared Memory Create");
         exit(EXIT_FAILURE);
