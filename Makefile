@@ -7,8 +7,6 @@ CC=gcc
 CFLAGS = -Wall -Werror -g
 LDFLAGS = -lpthread
 
-#object file
-OBJ = os.o
 #source file
 SRC = os.c
 #executable file
@@ -27,4 +25,4 @@ time:
 	time ./$(EXEC) $(file) $(k) $(n)
 
 clean:
-	rm -f  $(OBJ) $(EXEC)
+	rm -f  $(EXEC)

@@ -12,20 +12,18 @@
 #include <sys/wait.h>
 #include <semaphore.h>
 
-#define LINE_SIZE 100
-#define BUFFER_SIZE 1000    // buffer size is for reading lines from file
-                            // ( because the file can contain lines with > 100 characters
-                            // but the line can have at most 100 characters
+#define LINE_SIZE 100       // the line that will be requested can have at most 100 chars
+#define BUFFER_SIZE 1000    // buffer size is for reading lines from file as it can contain lines with more than 100 chars
 
 typedef struct shared_memory{
-    // 3 unnamed semaphores as part of the shared memory
+    // unnamed posix semaphores
     sem_t client_to_other_clients;
     sem_t client_to_server;
     sem_t server_to_client;
 
     pid_t id;                               // stores the id of current client's request
     unsigned int line_number;              // the number of the line which will be requested
-    char requested_line[LINE_SIZE];     // the line itself which will be returned
+    char requested_line[LINE_SIZE];       // the line which will be returned
     unsigned int child_counter;
 
 } shared_memory;
@@ -33,7 +31,6 @@ typedef struct shared_memory{
 
 int main(int argc, char* argv[]){
 
-    
     // get line arguments
     char* file_name = argv[1];
     int number_of_childs = atoi(argv[2]);
